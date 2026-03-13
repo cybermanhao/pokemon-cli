@@ -1,0 +1,13 @@
+{
+  "name": "pokemon-cli",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "cli": "pnpm --filter cli start",
+    "editor": "pnpm --filter editor dev"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
