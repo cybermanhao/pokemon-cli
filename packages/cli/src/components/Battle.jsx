@@ -1,0 +1,230 @@
+import React, { useState, useEffect } from 'react';
+import { Box, Text, useInput } from 'ink';
+import { t, getLanguage } from '@pokemon/i18n';
+import PokemonSprite from './PokemonSprite.jsx';
+import { executeTurn, wildChooseMove, createBattlePokemon, getSpecies, getStartingMoves, calcXpGain } from '@pokemon/battle';
+import { store } from '../store/gameState.js';
+
+const WILD_POOL = ['rattata','pidgey','spearow','ekans','sandshrew','nidoran-f','nidoran-m','clefairy','vulpix','jigglypuff','meowth','psyduck','mankey','growlithe','poliwag','abra','machop','bellsprout','tentacool','geodude','ponyta','slowpoke','magnemite','doduo','seel','grimer','shellder','gastly','drowzee','krabby','voltorb','exeggcute','cubone','koffing','rhyhorn','horsea','goldeen','staryu','scyther','pinsir','tauros','magikarp','eevee','porygon','omanyte','kabuto','dratini'];
+
+function generateWildPokemon(playerLevel) {
+  const name = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
+  const level = Math.max(2, playerLevel + Math.floor(Math.random() * 7) - 3);
+  const species = getSpecies(name, 1);
+  if (!species) return null;
+  return createBattlePokemon(species, level, getStartingMoves(species.id, level, 1), 1);
+}
+
+const HPBar = ({ hp, hpMax, width = 25 }) => {
+  const ratio = Math.max(0, Math.min(1, hp / hpMax));
+  const filled = Math.round(ratio * width);
+  const color = ratio > 0.5 ? 'green' : ratio > 0.2 ? 'yellow' : 'red';
+  return (
+    <Box>
+      <Text color="gray">{'['}</Text>
+      <Text color={color}>{'='.repeat(filled)}</Text>
+      <Text color="gray">{'.'.repeat(Math.max(0, width - filled))}</Text>
+      <Text color="gray">] {hp}/{hpMax}</Text>
+    </Box>
+  );
+};
+
+const TRANSITION_FRAMES = ['████████████████████', '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓', '████████████████████', '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒', '████████████████████', '▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓', '████████████████████', '▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒'];
+const POKEBALL_THROW = [{x:0,y:-3,open:false},{x:2,y:-2,open:false},{x:4,y:0,open:false},{x:6,y:1,open:true},{x:6,y:1,open:true,flash:true},{x:6,y:1,open:true,flash:true,appear:true}];
+const FLASH_FRAMES = [false,true,false,true,false,true,false];
+
+const PHASE = { TRANSITION:'transition', THROW:'throw', FLASH:'flash', APPEAR:'appear', SELECT:'select', MESSAGE:'message', WIN:'win', LOSE:'lose' };
+
+function eventToLog(event, nameMap) {
+  const name = uid => nameMap[uid] || uid;
+  switch (event.type) {
+    case 'damage': return [`${name(event.attacker)} 使用了 ${event.move}!`, event.effectiveness > 1 ? '效果拔群!' : '', `造成 ${event.damage} 点伤害!`];
+    case 'miss': return [`${name(event.attacker)} 攻击未命中!`];
+    case 'faint': return [`${name(event.pokemon)} 倒下了!`];
+    default: return [];
+  }
+}
+
+const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
+  const lang = getLanguage();
+  const [playerMon, setPlayerMon] = useState(() => structuredClone(initialPlayer));
+  const [enemyMon, setEnemyMon] = useState(null);
+  const [phase, setPhase] = useState(PHASE.TRANSITION);
+  const [log, setLog] = useState([]);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [transitionFrame, setTransitionFrame] = useState(0);
+  const [throwFrame, setThrowFrame] = useState(0);
+  const [flashFrame, setFlashFrame] = useState(0);
+  const [enemyAppear, setEnemyAppear] = useState(0);
+
+  const addLines = lines => setLog(prev => [...prev, ...lines].slice(-4));
+
+  useEffect(() => {
+    if (phase === PHASE.TRANSITION) {
+      const t = setInterval(() => setTransitionFrame(f => (f + 1) % TRANSITION_FRAMES.length), 60);
+      return () => clearInterval(t);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === PHASE.THROW) {
+      const t = setInterval(() => {
+        setThrowFrame(f => {
+          if (f < POKEBALL_THROW.length - 1) return f + 1;
+          clearInterval(t);
+          setTimeout(() => setPhase(PHASE.FLASH), 100);
+          return f;
+        });
+      }, 150);
+      return () => clearInterval(t);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === PHASE.FLASH) {
+      const t = setInterval(() => {
+        setFlashFrame(f => {
+          if (f < FLASH_FRAMES.length - 1) return f + 1;
+          clearInterval(t);
+          setTimeout(() => setPhase(PHASE.APPEAR), 100);
+          return f;
+        });
+      }, 80);
+      return () => clearInterval(t);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === PHASE.APPEAR) {
+      const t = setInterval(() => {
+        setEnemyAppear(a => {
+          if (a >= 1) { clearInterval(t); setTimeout(() => { setPhase(PHASE.SELECT); addLines(['野生的 ' + enemyMon?.nameEn + ' 出现了!']); }, 300); return 1; }
+          return a + 0.1;
+        });
+      }, 40);
+      return () => clearInterval(t);
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    let enemy = wildId ? createBattlePokemon(getSpecies(wildId, 1), initialPlayer.level, getStartingMoves(wildId, initialPlayer.level, 1), 1) : generateWildPokemon(initialPlayer.level);
+    if (!enemy) { onEnd({result:'error'}); return; }
+    setEnemyMon(enemy);
+    setTimeout(() => setPhase(PHASE.THROW), 1200);
+  }, []);
+
+  useEffect(() => {
+    if (phase === PHASE.WIN) {
+      const xp = calcXpGain(enemyMon, true);
+      addLines([`获得 ${xp} 经验值!`]);
+      const state = store.getState();
+      store.setState({ team: state.team.map(p => p.uid === playerMon.uid ? {...playerMon} : p) });
+      store.save();
+      setTimeout(() => onEnd({result:'win',playerMon}), 2500);
+    }
+    if (phase === PHASE.LOSE) setTimeout(() => onEnd({result:'lose'}), 2500);
+  }, [phase]);
+
+  useInput((input, key) => {
+    if (phase === PHASE.SELECT) {
+      if (key.upArrow) setSelectedIdx(i => i < 2 ? i : i - 2);
+      if (key.downArrow) setSelectedIdx(i => i >= 2 ? i : i + 2);
+      if (key.leftArrow) setSelectedIdx(i => i % 2 === 1 ? i - 1 : i);
+      if (key.rightArrow) setSelectedIdx(i => i % 2 === 0 ? i + 1 : i);
+      if (key.return) executeMove(selectedIdx);
+    }
+  });
+
+  const executeMove = async moveIdx => {
+    if (!enemyMon || phase !== PHASE.SELECT) return;
+    setPhase(PHASE.MESSAGE);
+    const pCopy = structuredClone(playerMon);
+    const eCopy = structuredClone(enemyMon);
+    const playerMove = pCopy.moves[moveIdx];
+    if (!playerMove) { setPhase(PHASE.SELECT); return; }
+    const enemyMove = wildChooseMove(eCopy);
+    const nameMap = {[pCopy.uid]: pCopy.nameEn, [eCopy.uid]: eCopy.nameEn};
+    const events = executeTurn(pCopy, playerMove, eCopy, enemyMove);
+    for (const event of events) {
+      const lines = eventToLog(event, nameMap);
+      if (lines.length) addLines(lines);
+      setPlayerMon({...pCopy});
+      setEnemyMon({...eCopy});
+      await delay(600);
+    }
+    if (eCopy.hp <= 0) { addLines([`${eCopy.nameEn} 倒下了!`, '战斗胜利!']); setPhase(PHASE.WIN); }
+    else if (pCopy.hp <= 0) { addLines([`${pCopy.nameEn} 倒下了!`, '你输了...']); setPhase(PHASE.LOSE); }
+    else setPhase(PHASE.SELECT);
+  };
+
+  if (phase === PHASE.TRANSITION) {
+    const frame = TRANSITION_FRAMES[transitionFrame];
+    return (
+      <Box flexDirection="column" justifyContent="center" alignItems="center" height={20}>
+        <Text color="black" backgroundColor="white">{frame}</Text>
+        {[...Array(18)].map((_, i) => <Text key={i} color="white" backgroundColor="black">{'                    '}</Text>)}
+        <Box marginTop={1}><Text color="yellow">野生的宝可梦？</Text></Box>
+      </Box>
+    );
+  }
+
+  if (phase === PHASE.THROW || phase === PHASE.FLASH || phase === PHASE.APPEAR) {
+    const tf = POKEBALL_THROW[Math.min(throwFrame, POKEBALL_THROW.length - 1)];
+    const isFlash = phase === PHASE.FLASH ? FLASH_FRAMES[flashFrame] : false;
+    const isAppearing = phase === PHASE.APPEAR;
+    return (
+      <Box flexDirection="column" justifyContent="center" alignItems="center" height={20}>
+        {(isFlash || isAppearing) && <Box position="absolute" top={0} left={0} width={60} height={20}><Text backgroundColor={isFlash ? (flashFrame%2===0?'white':'cyan') : 'black'}>{'                                                '}</Text></Box>}
+        <Box position="absolute" top={8+tf.y} left={25+tf.x}><Text color="red">●</Text><Text color="white">○</Text>{tf.open && <Text color="red"> ◐</Text>}</Box>
+        {isAppearing && enemyMon && <Box position="absolute" top={5} left={35} opacity={enemyAppear}><PokemonSprite pokemonId={enemyMon.id} pokemonType={enemyMon.type} width={18} height={9} showBorder={false} /></Box>}
+        <Box marginTop={10}><Text color={isFlash?'yellow':'white'}>{phase === PHASE.THROW ? '就决定是你了!' : phase === PHASE.FLASH ? '' : `野生的 ${enemyMon?.nameEn} 出现了!`}</Text></Box>
+      </Box>
+    );
+  }
+
+  if (!enemyMon) return <Box><Text color="gray">Loading...</Text></Box>;
+
+  const pName = playerMon.nameEn, eName = enemyMon.nameEn, moves = playerMon.moves || [];
+
+  return (
+    <Box flexDirection="column" paddingX={0} paddingY={0}>
+      <Box flexDirection="row" justifyContent="space-between" marginBottom={0}>
+        <Box flexDirection="column" width={28}>
+          <Text color="white" bold>{eName}  Lv.{enemyMon.level}</Text>
+          <HPBar hp={enemyMon.hp} hpMax={enemyMon.hpMax} width={18} />
+        </Box>
+        <PokemonSprite pokemonId={enemyMon.id} pokemonType={enemyMon.type} width={20} height={10} showBorder={false} />
+      </Box>
+      <Box height={1} />
+      <Box flexDirection="row" justifyContent="space-between" marginBottom={0}>
+        <PokemonSprite pokemonId={playerMon.id} pokemonType={playerMon.type} width={20} height={10} variant="back" showBorder={false} />
+        <Box flexDirection="column" width={28} alignItems="flex-end">
+          <Text color="white" bold>{pName}  Lv.{playerMon.level}</Text>
+          <HPBar hp={playerMon.hp} hpMax={playerMon.hpMax} width={18} />
+        </Box>
+      </Box>
+      <Box marginTop={0} borderStyle="double" borderColor="white" paddingX={1} height={6} flexDirection="column">
+        {(phase === PHASE.SELECT || phase === PHASE.MESSAGE) && (
+          <Box flexDirection="column" flexGrow={1}>
+            <Text color="white">要怎么做?</Text>
+            <Box flexDirection="row" flexWrap marginTop={0} gapX={3}>
+              {[0,1,2,3].map(i => {
+                const move = moves[i];
+                const isSelected = i === selectedIdx;
+                if (!move) return <Text key={i} color="gray">--------</Text>;
+                const moveName = lang === 'en' ? move.name : (move.nameZh || move.name);
+                return <Text key={i} color={isSelected?'green':'white'} bold={isSelected}>{isSelected?'▶':' '} {moveName}</Text>;
+              })}
+            </Box>
+            <Text color="cyan" dimColor>↑↓←→ 选择   Enter 确认</Text>
+          </Box>
+        )}
+        {phase === PHASE.WIN && <Box flexGrow={1} alignItems="center" justifyContent="center"><Text color="green" bold>★ 战斗胜利 ★</Text></Box>}
+        {phase === PHASE.LOSE && <Box flexGrow={1} alignItems="center" justifyContent="center"><Text color="red" bold>战斗失败...</Text></Box>}
+      </Box>
+    </Box>
+  );
+};
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
+export default Battle;

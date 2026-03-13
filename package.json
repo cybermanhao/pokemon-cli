@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "cli": "pnpm --filter cli start",
+    "cli:dev": "pnpm --filter cli watch",
+    "cli:build": "pnpm --filter cli build",
     "editor": "pnpm --filter editor dev"
   },
   "engines": {

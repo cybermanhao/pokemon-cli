@@ -1,0 +1,14 @@
+{
+  "name": "@pokemon/battle",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@smogon/calc": "^0.11.0",
+    "@pkmn/dex": "^0.10.7",
+    "@pkmn/data": "^0.10.7"
+  }
+}
