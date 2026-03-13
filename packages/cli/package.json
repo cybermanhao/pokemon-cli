@@ -1,0 +1,14 @@
+{
+  "name": "@pokemon/cli",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "pokemon": "./cli.js"
+  },
+  "dependencies": {
+    "ink": "^6.0.0",
+    "react": "^19.0.0",
+    "@pokemon/core": "workspace:*"
+  },
+  "devDependencies": {}
+}
