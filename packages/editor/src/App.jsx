@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { readModData, writeModData } from './lib/ipc';
+import DexEditor from './pages/DexEditor';
 
 function App() {
   const [active, setActive] = useState('dex');
@@ -58,7 +59,14 @@ function App() {
   const renderPage = () => {
     switch (active) {
       case 'dex':
-        return <div style={{ padding: 20 }}>Pokédex Editor - 待实现</div>;
+        return (
+          <DexEditor
+            species={species}
+            setSpecies={setSpecies}
+            moves={moves}
+            itemsRaw={itemsRaw}
+          />
+        );
       case 'moves':
         return <div style={{ padding: 20 }}>Moves Editor - 待实现</div>;
       case 'items':
