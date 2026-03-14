@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { readModData, writeModData } from './lib/ipc';
 import DexEditor from './pages/DexEditor';
+import MovesEditor from './pages/MovesEditor';
+import ItemsEditor from './pages/ItemsEditor';
 
 function App() {
   const [active, setActive] = useState('dex');
@@ -68,9 +70,19 @@ function App() {
           />
         );
       case 'moves':
-        return <div style={{ padding: 20 }}>Moves Editor - 待实现</div>;
+        return (
+          <MovesEditor
+            moves={moves}
+            setMoves={setMoves}
+          />
+        );
       case 'items':
-        return <div style={{ padding: 20 }}>Items Editor - 待实现</div>;
+        return (
+          <ItemsEditor
+            itemsRaw={itemsRaw}
+            setItemsRaw={setItemsRaw}
+          />
+        );
       case 'sprites':
         return <div style={{ padding: 20 }}>Sprite Studio - 待实现</div>;
       case 'learnset':
