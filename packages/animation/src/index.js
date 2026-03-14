@@ -101,17 +101,18 @@ export class AnimationEngine {
       switch (direction) {
         case 'forward': return { x: lungeDist, y: 0 };
         case 'backward': return { x: -lungeDist, y: 0 };
-        case 'left': return { x: 0, y: lungeDist };
-        case 'right': return { x: 0, y: -lungeDist };
+        case 'left': return { x: -lungeDist, y: 0 };
+        case 'right': return { x: lungeDist, y: 0 };
         default: return { x: lungeDist, y: 0 };
       }
     }
 
     if (type === 'jump') {
       // 上下跳跃
-      const jumpProgress = (anim.elapsed % (anim.duration / anim.count)) / (anim.duration / anim.count);
+      const count = anim.count || 1;
+      const jumpProgress = (anim.elapsed % (anim.duration / count)) / (anim.duration / count);
       const height = anim.height || 2;
-      const y = Math.abs(Math.sin(jumpProgress * Math.PI * anim.count)) * height;
+      const y = Math.abs(Math.sin(jumpProgress * Math.PI * count)) * height;
       return { x: 0, y: -y };
     }
 
@@ -123,7 +124,8 @@ export class AnimationEngine {
     const anim = this.animations.get(id);
     if (!anim) return [];
 
-    const { type, effect, progress } = anim;
+    const { type, effect } = anim;
+    const progress = anim.progress !== undefined ? anim.progress : 0;
 
     if (type === 'classic' && effect) {
       // 闪烁/震动效果
