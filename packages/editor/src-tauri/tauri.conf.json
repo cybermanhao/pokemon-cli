@@ -7,8 +7,7 @@
     "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:1420",
-    "devtools": true
+    "devUrl": "http://localhost:1420"
   },
   "app": {
     "withGlobalTauri": true,
@@ -18,7 +17,8 @@
         "width": 1200,
         "height": 800,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "devtools": true
       }
     ]
   },
