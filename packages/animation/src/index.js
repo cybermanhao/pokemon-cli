@@ -32,8 +32,10 @@ export class AnimationEngine {
     const animation = {
       id,
       ...config,
+      duration: config.duration || 1000, // default 1 second
       startTime: Date.now(),
       elapsed: 0,
+      progress: 0,
       complete: false,
     };
     this.animations.set(id, animation);
@@ -56,6 +58,15 @@ export class AnimationEngine {
 
   remove(id) {
     this.animations.delete(id);
+  }
+
+  // Call this periodically to clean up
+  cleanup() {
+    for (const [id, anim] of this.animations) {
+      if (anim.complete) {
+        this.animations.delete(id);
+      }
+    }
   }
 
   isComplete(id) {
