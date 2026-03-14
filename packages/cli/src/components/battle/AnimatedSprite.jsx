@@ -26,9 +26,13 @@ const AnimatedSprite = ({
 
     // 使用 setInterval 替代 requestAnimationFrame（兼容 CLI 环境）
     intervalRef.current = setInterval(() => {
-      const { getOffset, getEffects, isComplete, update } = animation;
+      const { engine, id } = animation;
+      if (!engine || !id) {
+        clearInterval(intervalRef.current);
+        return;
+      }
 
-      if (isComplete()) {
+      if (engine.isComplete(id)) {
         setOffset({ x: 0, y: 0 });
         setFlash(false);
         clearInterval(intervalRef.current);
@@ -36,11 +40,11 @@ const AnimatedSprite = ({
       }
 
       // 更新动画 (33ms = 30fps)
-      update(33);
+      engine.update(id, 33);
 
       // 获取当前状态
-      const newOffset = getOffset();
-      const newEffects = getEffects();
+      const newOffset = engine.getOffset(id);
+      const newEffects = engine.getEffects(id);
 
       setOffset(newOffset);
       setFlash(newEffects.includes('flash'));
@@ -50,6 +54,10 @@ const AnimatedSprite = ({
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+      }
+      // Clean up animation if still active
+      if (animation?.engine && animation?.id) {
+        animation.engine.remove(animation.id);
       }
     };
   }, [animation]);
