@@ -73,6 +73,72 @@ export class AnimationEngine {
     const anim = this.animations.get(id);
     return !anim || anim.complete;
   }
+
+  // 获取位移
+  getOffset(id) {
+    const anim = this.animations.get(id);
+    if (!anim) return { x: 0, y: 0 };
+
+    const { type, direction, distance = 3, curve = 'ease-in-out', progress: rawProgress } = anim;
+    const progress = Math.min(1, rawProgress);
+    const t = bezier(progress, ...getCurve(curve));
+
+    if (type === 'lunge') {
+      const { return: shouldReturn = true } = anim;
+      let lungeT;
+      let lungeDist;
+
+      if (shouldReturn) {
+        // 前进然后后退（前半程前进，后半程后退）
+        const forward = progress < 0.5;
+        lungeT = forward ? progress * 2 : (1 - progress) * 2;
+        lungeDist = bezier(lungeT, ...getCurve(curve)) * distance;
+      } else {
+        // 只前进不后退
+        lungeDist = bezier(progress, ...getCurve(curve)) * distance;
+      }
+
+      switch (direction) {
+        case 'forward': return { x: lungeDist, y: 0 };
+        case 'backward': return { x: -lungeDist, y: 0 };
+        case 'left': return { x: 0, y: lungeDist };
+        case 'right': return { x: 0, y: -lungeDist };
+        default: return { x: lungeDist, y: 0 };
+      }
+    }
+
+    if (type === 'jump') {
+      // 上下跳跃
+      const jumpProgress = (anim.elapsed % (anim.duration / anim.count)) / (anim.duration / anim.count);
+      const height = anim.height || 2;
+      const y = Math.abs(Math.sin(jumpProgress * Math.PI * anim.count)) * height;
+      return { x: 0, y: -y };
+    }
+
+    return { x: 0, y: 0 };
+  }
+
+  // 获取效果
+  getEffects(id) {
+    const anim = this.animations.get(id);
+    if (!anim) return [];
+
+    const { type, effect, progress } = anim;
+
+    if (type === 'classic' && effect) {
+      // 闪烁/震动效果
+      if (effect === 'shake' || effect === 'flash') {
+        const cycleDuration = 100;
+        const cycle = Math.floor(anim.elapsed / cycleDuration) % 2;
+        return cycle === 0 ? [effect] : [];
+      }
+      if (effect === 'charge' || effect === 'glow') {
+        return progress < 1 ? [effect] : [];
+      }
+    }
+
+    return [];
+  }
 }
 
 // 单例
