@@ -13,20 +13,35 @@ await esbuild.build({
   outfile: 'dist/cli.mjs',
   banner: {
     js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);
-    // Only apply workaround if NOT in a real TTY
-    if (typeof process.stdin.isTTY === 'undefined' || !process.stdout.isTTY) {
-      (function() {
-        const originalStdin = process.stdin;
-        originalStdin.setRawMode = function(enabled) { return this; };
-        Object.defineProperty(originalStdin, 'isRaw', { get() { return true; }, set() {}, configurable: true });
-        Object.defineProperty(originalStdin, 'isTTY', { get() { return true; }, set() {}, configurable: true });
-      })();
-    }`,
+    // Add missing methods to stdin for non-TTY environments (PowerShell, ConEmu, Git Bash)
+    (function() {
+      try {
+        const stdin = process.stdin;
+        // Add missing methods if they don't exist
+        if (typeof stdin.ref !== 'function') {
+          stdin.ref = function() {};
+        }
+        if (typeof stdin.unref !== 'function') {
+          stdin.unref = function() {};
+        }
+        if (typeof stdin.setRawMode !== 'function') {
+          stdin.setRawMode = function(enabled) { return this; };
+        }
+        // Make isRaw and isTTY appear to be true
+        if (!stdin.isRaw) {
+          Object.defineProperty(stdin, 'isRaw', { get: () => true, set: () => {}, configurable: true });
+        }
+        if (!stdin.isTTY) {
+          Object.defineProperty(stdin, 'isTTY', { get: () => true, set: () => {}, configurable: true });
+        }
+      } catch(e) { console.error('Stdin patch error:', e); }
+    })();`,
   },
   alias: {
     '@pokemon/i18n': resolve(__dirname, '../i18n/src/index.js'),
     '@pokemon/core': resolve(__dirname, '../core/src/types.js'),
     '@pokemon/battle': resolve(__dirname, '../battle/src/index.js'),
+    '@pokemon/animation': resolve(__dirname, '../animation/src/index.js'),
   },
   nodePaths: [resolve(__dirname, 'node_modules')],
   plugins: [

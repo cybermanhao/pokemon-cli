@@ -4,12 +4,15 @@ import { t, getLanguage } from '@pokemon/i18n';
 import PokemonSprite from './PokemonSprite.jsx';
 import { executeTurn, wildChooseMove, createBattlePokemon, getSpecies, getStartingMoves, calcXpGain } from '@pokemon/battle';
 import { store } from '../store/gameState.js';
+import { animationEngine } from '@pokemon/animation';
+import { ANIMATIONS, getAnimationConfig } from './battle/animations.js';
+import AnimatedSprite from './battle/AnimatedSprite.jsx';
 
-const WILD_POOL = ['rattata','pidgey','spearow','ekans','sandshrew','nidoran-f','nidoran-m','clefairy','vulpix','jigglypuff','meowth','psyduck','mankey','growlithe','poliwag','abra','machop','bellsprout','tentacool','geodude','ponyta','slowpoke','magnemite','doduo','seel','grimer','shellder','gastly','drowzee','krabby','voltorb','exeggcute','cubone','koffing','rhyhorn','horsea','goldeen','staryu','scyther','pinsir','tauros','magikarp','eevee','porygon','omanyte','kabuto','dratini'];
+const WILD_POOL = ['rattata','pidgey','spearow','ekans','sandshrew','nidoran-f','nidoran-m','clefairy','vulpix','jigglypuff','meowth','psyduck','mankey','growlithe','poliwag','abra','machop','bellsprout','tentacool','geodude','ponyta','slowpoke','magnemite','doduo','seel','grimer','shellder','gastly','drowzee','krabby','voltorb','exeggcute','cubone','koffing','rhyhorn','horsea','goldeen','staryu','scyther','pinsir','tauros','magikarp','eevee','omanyte','kabuto','dratini'];
 
 function generateWildPokemon(playerLevel) {
   const name = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
-  const level = Math.max(2, playerLevel + Math.floor(Math.random() * 7) - 3);
+  const level = Math.max(1, playerLevel + Math.floor(Math.random() * 5) - 2);
   const species = getSpecies(name, 1);
   if (!species) return null;
   return createBattlePokemon(species, level, getStartingMoves(species.id, level, 1), 1);
@@ -56,6 +59,9 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
   const [throwFrame, setThrowFrame] = useState(0);
   const [flashFrame, setFlashFrame] = useState(0);
   const [enemyAppear, setEnemyAppear] = useState(0);
+  const [playerAnim, setPlayerAnim] = useState(null);
+  const [enemyAnim, setEnemyAnim] = useState(null);
+  const [inputBlocked, setInputBlocked] = useState(false);
 
   const addLines = lines => setLog(prev => [...prev, ...lines].slice(-4));
 
@@ -126,32 +132,68 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
   }, [phase]);
 
   useInput((input, key) => {
-    if (phase === PHASE.SELECT) {
-      if (key.upArrow) setSelectedIdx(i => i < 2 ? i : i - 2);
-      if (key.downArrow) setSelectedIdx(i => i >= 2 ? i : i + 2);
-      if (key.leftArrow) setSelectedIdx(i => i % 2 === 1 ? i - 1 : i);
-      if (key.rightArrow) setSelectedIdx(i => i % 2 === 0 ? i + 1 : i);
-      if (key.return) executeMove(selectedIdx);
-    }
+    if (inputBlocked || phase !== PHASE.SELECT) return;
+    if (key.upArrow) setSelectedIdx(i => i < 2 ? i : i - 2);
+    if (key.downArrow) setSelectedIdx(i => i >= 2 ? i : i + 2);
+    if (key.leftArrow) setSelectedIdx(i => i % 2 === 1 ? i - 1 : i);
+    if (key.rightArrow) setSelectedIdx(i => i % 2 === 0 ? i + 1 : i);
+    if (key.return) executeMove(selectedIdx);
   });
 
   const executeMove = async moveIdx => {
     if (!enemyMon || phase !== PHASE.SELECT) return;
-    setPhase(PHASE.MESSAGE);
+    setInputBlocked(true);  // 阻塞输入
+
     const pCopy = structuredClone(playerMon);
     const eCopy = structuredClone(enemyMon);
     const playerMove = pCopy.moves[moveIdx];
-    if (!playerMove) { setPhase(PHASE.SELECT); return; }
+    if (!playerMove) { setPhase(PHASE.SELECT); setInputBlocked(false); return; }
+
+    // 玩家攻击动画
+    const animConfig = getAnimationConfig(playerMove.name, playerMove.category);
+    const playerAnimId = animationEngine.create({
+      ...animConfig,
+      type: animConfig.type || 'lunge',
+      direction: 'forward',
+      duration: animConfig.duration || 300,
+    });
+    setPlayerAnim({ id: playerAnimId, engine: animationEngine });
+
+    // 等待攻击动画完成
+    await new Promise(r => setTimeout(r, animConfig.duration || 300));
+
+    // 执行战斗逻辑
     const enemyMove = wildChooseMove(eCopy);
     const nameMap = {[pCopy.uid]: pCopy.nameEn, [eCopy.uid]: eCopy.nameEn};
     const events = executeTurn(pCopy, playerMove, eCopy, enemyMove);
+
     for (const event of events) {
       const lines = eventToLog(event, nameMap);
       if (lines.length) addLines(lines);
       setPlayerMon({...pCopy});
       setEnemyMon({...eCopy});
-      await delay(600);
+
+      // 如果造成伤害，播放受击动画
+      if (event.type === 'damage') {
+        const hitAnimId = animationEngine.create({
+          type: 'classic',
+          effect: 'shake',
+          duration: 200,
+        });
+        setEnemyAnim({ id: hitAnimId, engine: animationEngine });
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      await delay(400);
     }
+
+    // 清理动画
+    if (playerAnim?.id) animationEngine.remove(playerAnim.id);
+    if (enemyAnim?.id) animationEngine.remove(enemyAnim.id);
+    setPlayerAnim(null);
+    setEnemyAnim(null);
+    setInputBlocked(false);
+
     if (eCopy.hp <= 0) { addLines([`${eCopy.nameEn} 倒下了!`, '战斗胜利!']); setPhase(PHASE.WIN); }
     else if (pCopy.hp <= 0) { addLines([`${pCopy.nameEn} 倒下了!`, '你输了...']); setPhase(PHASE.LOSE); }
     else setPhase(PHASE.SELECT);
@@ -176,7 +218,7 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
       <Box flexDirection="column" justifyContent="center" alignItems="center" height={20}>
         {(isFlash || isAppearing) && <Box position="absolute" top={0} left={0} width={60} height={20}><Text backgroundColor={isFlash ? (flashFrame%2===0?'white':'cyan') : 'black'}>{'                                                '}</Text></Box>}
         <Box position="absolute" top={8+tf.y} left={25+tf.x}><Text color="red">●</Text><Text color="white">○</Text>{tf.open && <Text color="red"> ◐</Text>}</Box>
-        {isAppearing && enemyMon && <Box position="absolute" top={5} left={35} opacity={enemyAppear}><PokemonSprite pokemonId={enemyMon.id} pokemonType={enemyMon.type} width={18} height={9} showBorder={false} /></Box>}
+        {isAppearing && enemyMon && <Box position="absolute" top={5} left={35} opacity={enemyAppear}><AnimatedSprite pokemonId={enemyMon.id} pokemonType={enemyMon.type} width={18} height={9} showBorder={false} animation={enemyAnim} /></Box>}
         <Box marginTop={10}><Text color={isFlash?'yellow':'white'}>{phase === PHASE.THROW ? '就决定是你了!' : phase === PHASE.FLASH ? '' : `野生的 ${enemyMon?.nameEn} 出现了!`}</Text></Box>
       </Box>
     );
@@ -193,11 +235,11 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
           <Text color="white" bold>{eName}  Lv.{enemyMon.level}</Text>
           <HPBar hp={enemyMon.hp} hpMax={enemyMon.hpMax} width={18} />
         </Box>
-        <PokemonSprite pokemonId={enemyMon.id} pokemonType={enemyMon.type} width={20} height={10} showBorder={false} />
+        <AnimatedSprite pokemonId={enemyMon.id} pokemonType={enemyMon.type} width={20} height={10} showBorder={false} animation={enemyAnim} />
       </Box>
       <Box height={1} />
       <Box flexDirection="row" justifyContent="space-between" marginBottom={0}>
-        <PokemonSprite pokemonId={playerMon.id} pokemonType={playerMon.type} width={20} height={10} variant="back" showBorder={false} />
+        <AnimatedSprite pokemonId={playerMon.id} pokemonType={playerMon.type} width={20} height={10} variant="back" showBorder={false} animation={playerAnim} />
         <Box flexDirection="column" width={28} alignItems="flex-end">
           <Text color="white" bold>{pName}  Lv.{playerMon.level}</Text>
           <HPBar hp={playerMon.hp} hpMax={playerMon.hpMax} width={18} />
