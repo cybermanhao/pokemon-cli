@@ -3,6 +3,8 @@ import { readModData, writeModData } from './lib/ipc';
 import DexEditor from './pages/DexEditor';
 import MovesEditor from './pages/MovesEditor';
 import ItemsEditor from './pages/ItemsEditor';
+import SpriteStudio from './pages/SpriteStudio';
+import LearnsetEditor from './pages/LearnsetEditor';
 
 function App() {
   const [active, setActive] = useState('dex');
@@ -84,9 +86,9 @@ function App() {
           />
         );
       case 'sprites':
-        return <div style={{ padding: 20 }}>Sprite Studio - 待实现</div>;
+        return <SpriteStudio />;
       case 'learnset':
-        return <div style={{ padding: 20 }}>Learnset Editor - 待实现</div>;
+        return <LearnsetEditor />;
       default:
         return null;
     }
