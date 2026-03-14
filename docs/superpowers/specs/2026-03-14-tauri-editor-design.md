@@ -14,6 +14,7 @@ A Tauri 2.x desktop application for editing the game's mod data, managing sprite
 - Pokédex Editor — create and modify custom species and official-species overrides
 - Sprite Studio — multi-engine ASCII generation with visual comparison and config persistence
 - Learnset Editor — read-only learnset browser with level-up / egg / TM tables
+- Items Editor — Monaco raw JS editor for Items block (supports function-valued effect callbacks)
 - Map Planner — roadmap placeholder, no implementation in this phase
 
 **Non-goals:** The editor does not ship a battle simulator or game runtime. It is purely a data-authoring tool.
@@ -216,13 +217,19 @@ export const MOD_ID = 'pokemon-cli';
 export const MOD_DATA = { Species: {}, Moves: {}, Items: {} };
 ```
 
-**Editor scope is restricted to JSON-serializable data only** — Species and Moves fields. Items that contain function-valued properties (e.g. `onModifySpA: () => 1.2`) are preserved verbatim and **not editable** in this phase. The editor never touches the `Items` block.
+The Rust `mod_io.rs` command uses a **three-section strategy**:
 
-The Rust `mod_io.rs` command:
+| Section | Editing mode | Reason |
+|---------|-------------|--------|
+| `Species` | Structured form (JSON round-trip) | All fields are JSON-serializable |
+| `Moves` | Structured form (JSON round-trip) | All fields are JSON-serializable |
+| `Items` | Raw JS code editor (Monaco) | Effect callbacks (`onModifySpA: () => …`) are not JSON-serializable; raw editing preserves them |
+
+The Rust backend:
 1. Reads the file as text
-2. Locates the `Species: { ... }` and `Moves: { ... }` blocks using a paired-brace scan (not regex — handles nested objects correctly)
-3. Parses each block as JSON and sends to frontend
-4. On save: receives updated JSON, serializes back to a JS object literal, splices only the `Species` and `Moves` sections back into the file, leaving `Items` and all surrounding comments untouched
+2. Locates each of the three blocks using a paired-brace scan (handles nested objects correctly)
+3. Sends `Species` and `Moves` as parsed JSON; sends `Items` block as a raw JS string to a Monaco editor in the frontend
+4. On save: receives updated JSON for Species/Moves + raw JS string for Items; splices all three sections back, preserving surrounding comments
 
 ### Sprite config
 
@@ -282,7 +289,8 @@ Out of scope for this phase. A Map Planner tab will be added only when a dedicat
 
 | Phase | Scope |
 |-------|-------|
-| **P1** | Project scaffold (Tauri 2.x + Vite + React), tab shell, `mod_io.rs` read/write (paired-brace scan, Species+Moves only), Dex Editor form |
-| **P2** | Sprite Studio: fetch PNG → temp path, built-in Rust ASCII engine, `jimp` sidecar (with await + aspect-ratio fixes) |
-| **P3** | Sprite Studio: `chafa` + `jp2a` sidecars, Braille engine, batch mode, side-by-side engine comparison UI |
-| **P4** | Learnset Editor (level-up / egg / TM tables) |
+| **P1** | Project scaffold (Tauri 2.x + Vite + React), tab shell, `mod_io.rs` read/write (paired-brace scan, all three sections), Dex Editor form |
+| **P2** | Items Editor (Monaco raw JS), Moves Editor (structured form) |
+| **P3** | Sprite Studio: fetch PNG → temp path, built-in Rust ASCII engine, `jimp` sidecar (with await + aspect-ratio fixes) |
+| **P4** | Sprite Studio: `chafa` + `jp2a` sidecars, Braille engine, batch mode, side-by-side engine comparison UI |
+| **P5** | Learnset Editor (level-up / egg / TM tables) |
