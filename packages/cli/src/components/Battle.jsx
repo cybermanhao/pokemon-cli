@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { t, getLanguage } from '@pokemon/i18n';
 import PokemonSprite from './PokemonSprite.jsx';
-import { executeTurn, wildChooseMove, createBattlePokemon, getSpecies, getStartingMoves, calcXpGain } from '@pokemon/battle';
+import { executeTurn, wildChooseMove, createBattlePokemon, getSpecies, getStartingMoves, calcXpGain, BATTLE_GEN } from '@pokemon/battle';
 import { store } from '../store/gameState.js';
 import { animationEngine } from '@pokemon/animation';
 import { ANIMATIONS, getAnimationConfig } from './battle/animations.js';
@@ -10,12 +10,13 @@ import AnimatedSprite from './battle/AnimatedSprite.jsx';
 
 const WILD_POOL = ['rattata','pidgey','spearow','ekans','sandshrew','nidoran-f','nidoran-m','clefairy','vulpix','jigglypuff','meowth','psyduck','mankey','growlithe','poliwag','abra','machop','bellsprout','tentacool','geodude','ponyta','slowpoke','magnemite','doduo','seel','grimer','shellder','gastly','drowzee','krabby','voltorb','exeggcute','cubone','koffing','rhyhorn','horsea','goldeen','staryu','scyther','pinsir','tauros','magikarp','eevee','omanyte','kabuto','dratini'];
 
-function generateWildPokemon(playerLevel) {
+async function generateWildPokemon(playerLevel) {
   const name = WILD_POOL[Math.floor(Math.random() * WILD_POOL.length)];
   const level = Math.max(1, playerLevel + Math.floor(Math.random() * 5) - 2);
-  const species = getSpecies(name, 1);
+  const species = getSpecies(name, BATTLE_GEN);
   if (!species) return null;
-  return createBattlePokemon(species, level, getStartingMoves(species.id, level, 1), 1);
+  const moves = await getStartingMoves(species.id, level, BATTLE_GEN);
+  return createBattlePokemon(species, level, moves, BATTLE_GEN);
 }
 
 const HPBar = ({ hp, hpMax, width = 25 }) => {
@@ -41,11 +42,28 @@ const PHASE = { TRANSITION:'transition', THROW:'throw', FLASH:'flash', APPEAR:'a
 function eventToLog(event, nameMap) {
   const name = uid => nameMap[uid] || uid;
   switch (event.type) {
-    case 'damage': return [`${name(event.attacker)} 使用了 ${event.move}!`, event.effectiveness > 1 ? '效果拔群!' : '', `造成 ${event.damage} 点伤害!`];
-    case 'miss': return [`${name(event.attacker)} 攻击未命中!`];
+    case 'damage': return [
+      `${name(event.attacker)} 使用了 ${event.move}!`,
+      event.effectiveness > 1 ? '效果拔群!' : event.effectiveness === 0 ? '没有效果...' : null,
+      `造成 ${event.damage} 点伤害!`,
+    ].filter(Boolean);
+    case 'miss': return [`${name(event.attacker)} 的攻击未命中!`];
     case 'faint': return [`${name(event.pokemon)} 倒下了!`];
+    case 'fullParalyze': return [`${name(event.pokemon)} 因麻痹无法行动!`];
+    case 'sleeping': return [`${name(event.pokemon)} 正在睡眠中...`];
+    case 'wakeUp': return [`${name(event.pokemon)} 醒来了!`];
+    case 'frozen': return [`${name(event.pokemon)} 被冻住了!`];
+    case 'thaw': return [`${name(event.pokemon)} 解冻了!`];
+    case 'dot': return [`${name(event.pokemon)} 受到${event.status === 'burn' ? '灼伤' : '中毒'}伤害 ${event.damage}!`];
+    case 'noEffect': return [`对 ${name(event.defender)} 没有效果...`];
+    case 'statusMove': return [`${name(event.attacker)} 使用了 ${event.move}!`];
+    case 'secondary': return event.status ? [`${name(event.pokemon)} ${statusName(event.status)}了!`] : [];
     default: return [];
   }
+}
+
+function statusName(s) {
+  return { burn: '被灼伤', paralyze: '被麻痹', sleep: '睡着', freeze: '被冰冻', poison: '中毒' }[s] ?? s;
 }
 
 const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
@@ -130,10 +148,20 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
   }, [phase]);
 
   useEffect(() => {
-    let enemy = wildId ? createBattlePokemon(getSpecies(wildId, 1), initialPlayer.level, getStartingMoves(wildId, initialPlayer.level, 1), 1) : generateWildPokemon(initialPlayer.level);
-    if (!enemy) { onEnd({result:'error'}); return; }
-    setEnemyMon(enemy);
-    setTimeout(() => setPhase(PHASE.THROW), 1200);
+    async function initEnemy() {
+      let enemy;
+      if (wildId) {
+        const species = getSpecies(wildId, BATTLE_GEN);
+        const moves = await getStartingMoves(wildId, initialPlayer.level, BATTLE_GEN);
+        enemy = species ? createBattlePokemon(species, initialPlayer.level, moves, BATTLE_GEN) : null;
+      } else {
+        enemy = await generateWildPokemon(initialPlayer.level);
+      }
+      if (!enemy) { onEnd({ result: 'error' }); return; }
+      setEnemyMon(enemy);
+      setTimeout(() => setPhase(PHASE.THROW), 1200);
+    }
+    initEnemy();
   }, []);
 
   useEffect(() => {
@@ -184,6 +212,7 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
     const nameMap = {[pCopy.uid]: pCopy.nameEn, [eCopy.uid]: eCopy.nameEn};
     const events = executeTurn(pCopy, playerMove, eCopy, enemyMove);
 
+    let lastHitAnimId = null;
     for (const event of events) {
       const lines = eventToLog(event, nameMap);
       if (lines.length) addLines(lines);
@@ -197,6 +226,7 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
           effect: 'shake',
           duration: 200,
         });
+        lastHitAnimId = hitAnimId;
         setEnemyAnim({ id: hitAnimId, engine: animationEngine });
         await new Promise(r => setTimeout(r, 200));
       }
@@ -204,9 +234,9 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
       await delay(400);
     }
 
-    // 清理动画
-    if (playerAnim?.id) animationEngine.remove(playerAnim.id);
-    if (enemyAnim?.id) animationEngine.remove(enemyAnim.id);
+    // 清理动画（用局部变量，避免 React state 陈旧闭包）
+    animationEngine.remove(playerAnimId);
+    if (lastHitAnimId) animationEngine.remove(lastHitAnimId);
     setPlayerAnim(null);
     setEnemyAnim(null);
     setInputBlocked(false);
@@ -266,7 +296,7 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
         {(phase === PHASE.SELECT || phase === PHASE.MESSAGE) && (
           <Box flexDirection="column" flexGrow={1}>
             <Text color="white">要怎么做?</Text>
-            <Box flexDirection="row" flexWrap marginTop={0} gapX={3}>
+            <Box flexDirection="row" flexWrap="wrap" marginTop={0} columnGap={3}>
               {[0,1,2,3].map(i => {
                 const move = moves[i];
                 const isSelected = i === selectedIdx;

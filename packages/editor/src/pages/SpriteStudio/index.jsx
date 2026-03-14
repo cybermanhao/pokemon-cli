@@ -17,7 +17,6 @@ const CHARSETS = [
 export default function SpriteStudio() {
   const [speciesId, setSpeciesId] = useState('25');
   const [variant, setVariant] = useState('front');
-  const [shiny, setShiny] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pngPath, setPngPath] = useState('');
   const [outputs, setOutputs] = useState({});
@@ -41,15 +40,15 @@ export default function SpriteStudio() {
     setLoading(true);
     setOutputs({});
     try {
-      const v = shiny ? `${variant}Shiny` : variant;
-      const path = await fetchSpritePng(parseInt(speciesId, 10), v);
+      // variant already contains the full variant name (front, back, frontShiny, backShiny)
+      const path = await fetchSpritePng(parseInt(speciesId, 10), variant);
       setPngPath(path);
     } catch (e) {
       alert(`获取失败: ${e}`);
     } finally {
       setLoading(false);
     }
-  }, [speciesId, variant, shiny]);
+  }, [speciesId, variant]);
 
   // Render ASCII with all engines
   const handleRender = useCallback(async () => {
@@ -97,13 +96,6 @@ export default function SpriteStudio() {
           <select value={variant} onChange={(e) => setVariant(e.target.value)} style={{ padding: '4px 8px' }}>
             {variantOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
           </select>
-        </div>
-        <div>
-          <label style={{ display: 'block', marginBottom: 4 }}>&nbsp;</label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <input type="checkbox" checked={shiny} onChange={(e) => setShiny(e.target.checked)} />
-            闪蛋
-          </label>
         </div>
         <div>
           <label style={{ display: 'block', marginBottom: 4 }}>&nbsp;</label>

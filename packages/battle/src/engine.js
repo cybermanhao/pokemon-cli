@@ -3,9 +3,9 @@
  */
 
 import { calculate, Generations, Pokemon as CalcPokemon, Move as CalcMove } from '@smogon/calc';
-import { getDex, getEffectiveness } from './dex.js';
+import { getDex, getEffectiveness, BATTLE_GEN } from './dex.js';
 
-export function createBattlePokemon(speciesData, level, moveIds, genNum = 1) {
+export function createBattlePokemon(speciesData, level, moveIds, genNum = BATTLE_GEN) {
   const { baseStats } = speciesData;
   const calcStat = (base, isHp = false) => {
     if (isHp) return Math.floor((base * 2 * level) / 100) + level + 10;
@@ -45,7 +45,7 @@ export function createBattlePokemon(speciesData, level, moveIds, genNum = 1) {
 }
 
 export function calculateDamage(attacker, move, defender) {
-  const genNum = attacker.genNum ?? 1;
+  const genNum = attacker.genNum ?? BATTLE_GEN;
   if (move.category === 'Status' || move.basePower === 0) {
     return { damage: 0, effectiveness: 1, critical: false, desc: '' };
   }

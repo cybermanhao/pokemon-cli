@@ -5,60 +5,52 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// DEV=true 时：react-devtools-core 作为外部模块加载，支持 React DevTools GUI 连接
+// 否则：stub 掉，零开销
+const isDevMode = process.env.DEV === 'true';
+
+const stubDevtoolsPlugin = {
+  name: 'stub-devtools',
+  setup(build) {
+    build.onResolve({ filter: /^react-devtools-core$/ }, () => ({
+      path: 'react-devtools-core',
+      namespace: 'stub',
+    }));
+    build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
+      contents: 'export default { connectToDevTools: () => {} }',
+      loader: 'js',
+    }));
+  },
+};
+
 await esbuild.build({
   entryPoints: ['src/index.jsx'],
   bundle: true,
   platform: 'node',
   format: 'esm',
   outfile: 'dist/cli.mjs',
+  external: isDevMode ? ['react-devtools-core'] : [],
   banner: {
     js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);
     // Add missing methods to stdin for non-TTY environments (PowerShell, ConEmu, Git Bash)
     (function() {
       try {
         const stdin = process.stdin;
-        // Add missing methods if they don't exist
-        if (typeof stdin.ref !== 'function') {
-          stdin.ref = function() {};
-        }
-        if (typeof stdin.unref !== 'function') {
-          stdin.unref = function() {};
-        }
-        if (typeof stdin.setRawMode !== 'function') {
-          stdin.setRawMode = function(enabled) { return this; };
-        }
-        // Make isRaw and isTTY appear to be true
-        if (!stdin.isRaw) {
-          Object.defineProperty(stdin, 'isRaw', { get: () => true, set: () => {}, configurable: true });
-        }
-        if (!stdin.isTTY) {
-          Object.defineProperty(stdin, 'isTTY', { get: () => true, set: () => {}, configurable: true });
-        }
+        if (typeof stdin.ref !== 'function') stdin.ref = function() {};
+        if (typeof stdin.unref !== 'function') stdin.unref = function() {};
+        if (typeof stdin.setRawMode !== 'function') stdin.setRawMode = function(enabled) { return this; };
+        if (!stdin.isRaw) Object.defineProperty(stdin, 'isRaw', { get: () => true, set: () => {}, configurable: true });
+        if (!stdin.isTTY) Object.defineProperty(stdin, 'isTTY', { get: () => true, set: () => {}, configurable: true });
       } catch(e) { console.error('Stdin patch error:', e); }
     })();`,
   },
   alias: {
     '@pokemon/i18n': resolve(__dirname, '../i18n/src/index.js'),
-    '@pokemon/core': resolve(__dirname, '../core/src/types.js'),
     '@pokemon/battle': resolve(__dirname, '../battle/src/index.js'),
     '@pokemon/animation': resolve(__dirname, '../animation/src/index.js'),
   },
   nodePaths: [resolve(__dirname, 'node_modules')],
-  plugins: [
-    {
-      name: 'stub-devtools',
-      setup(build) {
-        build.onResolve({ filter: /^react-devtools-core$/ }, () => ({
-          path: 'react-devtools-core',
-          namespace: 'stub',
-        }));
-        build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({
-          contents: 'export default { connectToDevTools: () => {} }',
-          loader: 'js',
-        }));
-      },
-    },
-  ],
+  plugins: isDevMode ? [] : [stubDevtoolsPlugin],
 });
 
 // Copy yoga.wasm

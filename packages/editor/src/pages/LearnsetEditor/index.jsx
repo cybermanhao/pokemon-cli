@@ -38,13 +38,15 @@ export default function LearnsetEditor() {
       const eggMoves = [];
       const tmMoves = [];
 
-      for (const [move, sources] of Object.entries(data)) {
-        for (const source of sources) {
-          if (source.startsWith('9L')) {
+      for (const [move, sources] of Object.entries(data || {})) {
+        if (!sources) continue;
+        const srcArray = Array.isArray(sources) ? sources : [sources];
+        for (const source of srcArray) {
+          if (typeof source === 'string' && source.startsWith('9L')) {
             levelUp.push({ move, level: parseInt(source.slice(2), 10) });
-          } else if (source === '9E') {
+          } else if (typeof source === 'string' && source === '9E') {
             eggMoves.push(move);
-          } else if (source === '9M' || source === '9T') {
+          } else if (typeof source === 'string' && (source === '9M' || source === '9T')) {
             tmMoves.push(move);
           }
         }

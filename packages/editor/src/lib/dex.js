@@ -1,7 +1,9 @@
 import { Generations } from '@pkmn/data';
 import { Dex } from '@pkmn/dex';
 
-const gen = new Generations()[9];
+// Dex is already an instance, not a constructor
+const generations = new Generations(Dex);
+const gen = generations?.get(9) || generations?.get(8);
 
 /** @type {string[]} */
 export const TYPES = [
@@ -10,14 +12,14 @@ export const TYPES = [
 ];
 
 /** @type {string[]} */
-export const ABILITIES = gen.abilities.map((a) => a.name);
+export const ABILITIES = gen ? Array.from(gen.abilities).map((a) => a.name) : [];
 
 /**
  * Get all species names
  * @returns {string[]}
  */
 export function getAllSpeciesNames() {
-  return gen.species.map((s) => s.name);
+  return gen ? Array.from(gen.species).map((s) => s.name) : [];
 }
 
 /**
@@ -110,4 +112,5 @@ export async function getLearnset(name) {
   return { levelUp, eggMoves, tmMoves };
 }
 
-export { Dex, gen };
+export { Dex } from '@pkmn/dex';
+export { generations, gen };

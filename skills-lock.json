@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "computedHash": "645b891da1edbae76ab79c7b088d4e73397464f8396edaf773c0e01971ce75d6"
+    },
+    "ink": {
+      "source": "georg-unterholzner/ink-skill",
+      "sourceType": "github",
+      "computedHash": "3e1ad633cca7ccbfb2c37f2859d65ee625382a28a6c7ea644240bb9e4c4692d9"
+    }
+  }
+}

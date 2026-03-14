@@ -71,20 +71,19 @@ const AnimatedSprite = ({
     >
       <Box
         position="absolute"
-        top={offset.y}
-        left={offset.x}
+        top={Math.round(offset.y)}
+        left={Math.round(offset.x)}
       >
-        <Box opacity={flash ? 0.5 : 1}>
-          <PokemonSprite
-            pokemonId={pokemonId}
-            pokemonType={pokemonType}
-            width={width}
-            height={height}
-            variant={variant}
-            showBorder={showBorder}
-            label={label}
-          />
-        </Box>
+        <PokemonSprite
+          pokemonId={pokemonId}
+          pokemonType={pokemonType}
+          width={width}
+          height={height}
+          variant={variant}
+          showBorder={showBorder}
+          label={label}
+          dim={flash}
+        />
       </Box>
     </Box>
   );

@@ -48,7 +48,7 @@ export default function DexEditor({ species, setSpecies, moves, itemsRaw }) {
       newSpecies.types = [...official.types];
     }
     if (official?.abilities) {
-      newSpecies.abilities = [...official.abilities];
+      newSpecies.abilities = Array.from(official.abilities);
     }
     setSpecies({ ...species, [name]: newSpecies });
     setSelected(name);

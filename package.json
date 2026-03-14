@@ -6,6 +6,7 @@
     "cli": "pnpm --filter cli start",
     "cli:dev": "pnpm --filter cli watch",
     "cli:build": "pnpm --filter cli build",
+    "cli:devtools": "pnpm --filter cli devtools",
     "editor": "pnpm --filter editor dev"
   },
   "engines": {

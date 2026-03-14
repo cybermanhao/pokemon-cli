@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { t, getLanguage } from '@pokemon/i18n';
 import PokemonSprite from './PokemonSprite.jsx';
-import { getSpecies, getStartingMoves, createBattlePokemon } from '@pokemon/battle';
+import { getSpecies, getStartingMoves, createBattlePokemon, BATTLE_GEN } from '@pokemon/battle';
 import { store } from '../store/gameState.js';
 
 const STARTER_NAMES = ['Bulbasaur', 'Charmander', 'Squirtle'];
@@ -15,11 +15,15 @@ const StarterSelect = ({ onSelect }) => {
   const lang = getLanguage();
 
   useEffect(() => {
-    const data = STARTER_NAMES.map(name => {
-      const s = getSpecies(name, 1);
-      return { id: s.num, species: s, moves: getStartingMoves(s.id, 5, 1) };
-    });
-    setStarters(data);
+    async function load() {
+      const data = await Promise.all(STARTER_NAMES.map(async name => {
+        const s = getSpecies(name, BATTLE_GEN);
+        const moves = await getStartingMoves(s.id, 5, BATTLE_GEN);
+        return { id: s.num, species: s, moves };
+      }));
+      setStarters(data);
+    }
+    load();
   }, []);
 
   useInput((input, key) => {
@@ -28,7 +32,7 @@ const StarterSelect = ({ onSelect }) => {
       if (key.leftArrow || input === 'n') setConfirming(false);
       if (key.rightArrow || input === 'y' || key.return) {
         const { species, moves } = starters[selectedIdx];
-        const instance = createBattlePokemon(species, 5, moves, 1);
+        const instance = createBattlePokemon(species, 5, moves, BATTLE_GEN);
         store.setState({ team: [instance], started: true });
         store.save();
         onSelect(instance);

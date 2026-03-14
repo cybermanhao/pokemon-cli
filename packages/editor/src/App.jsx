@@ -1,10 +1,52 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { readModData, writeModData } from './lib/ipc';
+import { gen, Dex } from './lib/dex';
 import DexEditor from './pages/DexEditor';
 import MovesEditor from './pages/MovesEditor';
 import ItemsEditor from './pages/ItemsEditor';
 import SpriteStudio from './pages/SpriteStudio';
 import LearnsetEditor from './pages/LearnsetEditor';
+
+// Load official Gen 9 data
+function loadOfficialData() {
+  const officialSpecies = {};
+  for (const s of gen.species) {
+    officialSpecies[s.name] = {
+      name: s.name,
+      num: s.num,
+      baseStats: { ...s.baseStats },
+      types: [...s.types],
+      abilities: [...s.abilities],
+    };
+  }
+
+  const officialMoves = {};
+  for (const m of gen.moves) {
+    officialMoves[m.name] = {
+      name: m.name,
+      num: m.num,
+      type: m.type,
+      category: m.category,
+      pp: m.pp,
+      power: m.power,
+      accuracy: m.accuracy,
+    };
+  }
+
+  // Items need special handling - use raw JS format
+  const itemsObj = {};
+  for (const item of gen.items) {
+    itemsObj[item.name] = {
+      name: item.name,
+      num: item.num,
+    };
+  }
+  const itemsRaw = `{\n${Object.entries(itemsObj).map(([name, data]) =>
+    `  '${name}': ${JSON.stringify(data, null, 2)}`
+  ).join(',\n')}\n}`;
+
+  return { officialSpecies, officialMoves, itemsRaw };
+}
 
 function App() {
   const [active, setActive] = useState('dex');
@@ -116,6 +158,16 @@ function App() {
         />
         <button onClick={() => loadMod(modPath)} disabled={loading || !modPath}>
           {loading ? '加载中...' : '加载'}
+        </button>
+        <button onClick={() => {
+          const { officialSpecies, officialMoves, itemsRaw } = loadOfficialData();
+          setSpecies(officialSpecies);
+          setMoves(officialMoves);
+          setItemsRaw(itemsRaw);
+          setMessage('已加载 Gen9 官方数据!');
+          setTimeout(() => setMessage(''), 2000);
+        }}>
+          加载官方数据
         </button>
         <button onClick={saveMod} disabled={saving || !modPath}>
           {saving ? '保存中...' : '保存'}

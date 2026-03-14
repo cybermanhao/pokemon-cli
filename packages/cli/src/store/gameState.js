@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { createBattlePokemon, getSpecies, getStartingMoves } from '@pokemon/battle';
+import { createBattlePokemon, getSpecies, getStartingMoves, BATTLE_GEN } from '@pokemon/battle';
 
 const SAVE_DIR = join(homedir(), '.pokemon-cli');
 const SAVE_FILE = join(SAVE_DIR, 'save.json');
@@ -34,10 +34,10 @@ export const store = {
   save() { mkdirSync(SAVE_DIR, { recursive: true }); writeFileSync(SAVE_FILE, JSON.stringify(_state, null, 2)); },
 };
 
-export function createPokemonInstance(sourceData, level = 5) {
+export async function createPokemonInstance(sourceData, level = 5) {
   if (sourceData.baseStats) {
-    const moveIds = getStartingMoves(sourceData.id, level, 1);
-    return createBattlePokemon(sourceData, level, moveIds, 1);
+    const moveIds = await getStartingMoves(sourceData.id, level, BATTLE_GEN);
+    return createBattlePokemon(sourceData, level, moveIds, BATTLE_GEN);
   }
   const speciesLike = {
     id: (sourceData.nameEn || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, ''),
@@ -50,11 +50,11 @@ export function createPokemonInstance(sourceData, level = 5) {
     baseStats: { hp: sourceData.hp || 50, atk: sourceData.attack || 50, def: sourceData.defense || 50, spa: sourceData.specialAttack || 50, spd: sourceData.specialDefense || 50, spe: sourceData.speed || 50 },
   };
   let moveIds;
-  const dexSpecies = getSpecies(speciesLike.name, 1);
-  if (dexSpecies) moveIds = getStartingMoves(dexSpecies.id, level, 1);
+  const dexSpecies = getSpecies(speciesLike.name, BATTLE_GEN);
+  if (dexSpecies) moveIds = await getStartingMoves(dexSpecies.id, level, BATTLE_GEN);
   else if (sourceData.moves?.length) moveIds = sourceData.moves.slice(0, 4).map(m => m.id || m.nameEn?.toLowerCase() || 'tackle');
   else moveIds = ['tackle'];
-  const instance = createBattlePokemon(speciesLike, level, moveIds, 1);
+  const instance = createBattlePokemon(speciesLike, level, moveIds, BATTLE_GEN);
   instance.nameZh = sourceData.nameZh || instance.nameEn;
   instance.nameJa = sourceData.nameJa || instance.nameEn;
   return instance;

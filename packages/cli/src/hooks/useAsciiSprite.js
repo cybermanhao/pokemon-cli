@@ -8,7 +8,10 @@ export function useAsciiSprite(pokemonId, opts = {}) {
   const cacheKey = `${pokemonId}_${variant}_${width}x${height}_${colored}`;
 
   const [lines, setLines] = useState(() => {
-    if (SESSION_CACHE.has(cacheKey)) return SESSION_CACHE.get(cacheKey);
+    if (SESSION_CACHE.has(cacheKey)) {
+      const cached = SESSION_CACHE.get(cacheKey);
+      return Array.isArray(cached) ? cached : getFallbackSprite(pokemonId);
+    }
     return getFallbackSprite(pokemonId);
   });
   const [loading, setLoading] = useState(!SESSION_CACHE.has(cacheKey));

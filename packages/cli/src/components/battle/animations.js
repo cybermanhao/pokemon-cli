@@ -87,6 +87,6 @@ export const DEFAULT_ANIMATIONS = {
 
 // 获取动画配置
 export function getAnimationConfig(moveName, category) {
-  const lowerName = moveName.toLowerCase().replace(/[^a-z]/g, '');
+  const lowerName = moveName.toLowerCase().replace(/\s+/g, '-');
   return ANIMATIONS[lowerName] || ANIMATIONS[DEFAULT_ANIMATIONS[category]] || ANIMATIONS.tackle;
 }

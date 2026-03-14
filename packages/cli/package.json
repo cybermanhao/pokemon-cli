@@ -7,14 +7,15 @@
   },
   "scripts": {
     "build": "node build.mjs",
+    "build:dev": "cross-env DEV=true node build.mjs",
     "start": "node dist/cli.mjs",
     "dev": "node build.mjs && cross-env DEBUG=1 node dist/cli.mjs",
+    "devtools": "cross-env DEV=true node build.mjs && cross-env DEV=true node dist/cli.mjs",
     "watch": "nodemon --watch src --watch ../battle/src --watch ../i18n/src -e js,jsx --exec \"pnpm run build && cross-env DEBUG=1 node dist/cli.mjs\""
   },
   "dependencies": {
     "@pkmn/data": "^0.10.7",
     "@pkmn/dex": "^0.10.7",
-    "@pokemon/core": "workspace:*",
     "@smogon/calc": "^0.11.0",
     "ink": "^4.4.1",
     "ink-select-input": "^5.0.0",
@@ -25,6 +26,7 @@
   "devDependencies": {
     "cross-env": "^7.0.3",
     "esbuild": "^0.20.0",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "react-devtools-core": "^5.3.1"
   }
 }
