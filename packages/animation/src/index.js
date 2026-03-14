@@ -20,3 +20,49 @@ export const CURVES = {
 export function getCurve(name) {
   return CURVES[name] || CURVES['ease-in-out'];
 }
+
+export class AnimationEngine {
+  constructor() {
+    this.animations = new Map();
+    this.nextId = 0;
+  }
+
+  create(config) {
+    const id = ++this.nextId;
+    const animation = {
+      id,
+      ...config,
+      startTime: Date.now(),
+      elapsed: 0,
+      complete: false,
+    };
+    this.animations.set(id, animation);
+    return id;
+  }
+
+  update(id, deltaTime) {
+    const anim = this.animations.get(id);
+    if (!anim || anim.complete) return anim;
+
+    anim.elapsed += deltaTime;
+    anim.progress = Math.min(1, anim.elapsed / anim.duration);
+
+    if (anim.progress >= 1) {
+      anim.complete = true;
+    }
+
+    return anim;
+  }
+
+  remove(id) {
+    this.animations.delete(id);
+  }
+
+  isComplete(id) {
+    const anim = this.animations.get(id);
+    return !anim || anim.complete;
+  }
+}
+
+// 单例
+export const animationEngine = new AnimationEngine();
