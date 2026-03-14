@@ -104,7 +104,24 @@ const Battle = ({ playerPokemon: initialPlayer, onEnd, wildId }) => {
     if (phase === PHASE.APPEAR) {
       const t = setInterval(() => {
         setEnemyAppear(a => {
-          if (a >= 1) { clearInterval(t); setTimeout(() => { setPhase(PHASE.SELECT); addLines(['野生的 ' + enemyMon?.nameEn + ' 出现了!']); }, 300); return 1; }
+          if (a >= 1) {
+            clearInterval(t);
+            // 添加出场动画
+            const entryAnimId = animationEngine.create({
+              type: 'jump',
+              height: 1,
+              count: 2,
+              duration: 400,
+            });
+            setEnemyAnim({ id: entryAnimId, engine: animationEngine });
+            setTimeout(() => {
+              setPhase(PHASE.SELECT);
+              addLines(['野生的 ' + enemyMon?.nameEn + ' 出现了!']);
+              if (entryAnimId) animationEngine.remove(entryAnimId);
+              setEnemyAnim(null);
+            }, 400);
+            return 1;
+          }
           return a + 0.1;
         });
       }, 40);
